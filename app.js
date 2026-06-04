@@ -3,7 +3,7 @@
 // =========================================================================
 
 // --- SECTION 1: BUSINESS LOGIC MATRIX CONFIGURATION ---
-const BACKEND_API_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"; // Your active Code.gs deployment link
+const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec"; // Your active Code.gs deployment link
 
 const PRICING_LOGIC = {
     small:  { base: 200,  perKm: 40 },
