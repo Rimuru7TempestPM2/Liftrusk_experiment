@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifTruck Enterprise Master Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        /* Smooth scrolling and autocomplete dropdown positioning safety */
+        .pac-container {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            font-family: sans-serif;
+            z-index: 9999 !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 antialiased p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <header class="text-center md:text-left border-b border-gray-200 pb-6">
+            <h1 class="text-3xl font-black tracking-tight text-blue-900">LIFTRUCK ENTERPRISE</h1>
+            <p class="text-sm text-gray-500 font-medium">Logistics Coordination Engine & Live Driver Routing Portal</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                    <h2 class="text-lg font-bold text-gray-900 border-b pb-2">1. Client Booking Information</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Client Name</label>
+                            <input type="text" id="clientName" placeholder="e.g. John Doe" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Client Phone</label>
+                            <input type="text" id="clientPhone" placeholder="e.g. 0712345678" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Pickup Location</label>
+                            <input type="text" id="pickup" placeholder="Type pickup landmark or town..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Drop-off Location</label>
+                            <input type="text" id="dropoff" placeholder="Type destination landmark or town..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Cargo Class Category</label>
+                        <select id="weightSelect" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition font-medium">
+                            <option value="small">Small Cargo (Bike / Probox / Pickup) [Min: KES 200]</option>
+                            <option value="medium">Medium Cargo (3-Ton Van / Canter) [Min: KES 600]</option>
+                            <option value="large">Large Cargo (7-Ton Light Truck) [Min: KES 1500]</option>
+                            <option value="heavy">Heavy Cargo (10+ Ton Lorry / Trailer) [Min: KES 3500]</option>
+                        </select>
+                    </div>
+
+                    <button id="calculateBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl shadow-md transition transform active:scale-98 cursor-pointer mt-4">
+                        Analyze Route & Compute Pricing Metrics
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6 sticky top-6">
+                    <h2 class="text-lg font-bold text-gray-900 border-b pb-2">2. Processing Ledger</h2>
+                    
+                    <div id="resultsWrapper" class="hidden space-y-4">
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <div class="text-xs font-bold uppercase text-blue-500">Calculated Driving Distance</div>
+                            <div id="distanceOutput" class="text-2xl font-black text-blue-900">0.0 KM</div>
+                            <p class="text-xs text-blue-600 mt-1">*Factored with a 30% curvature/road safety routing overhead multiplier.</p>
+                        </div>
+
+                        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                            <div class="text-xs font-bold uppercase text-emerald-600">Total Client Invoice Amount</div>
+                            <div id="priceOutput" class="text-2xl font-black text-emerald-900">KES 0</div>
+                            <div class="text-[10px] font-semibold text-emerald-700 mt-1 flex justify-between">
+                                <span>Driver Share (85%): <strong id="driverShare">KES 0</strong></span>
+                                <span>LifTruck Cut (15%): <strong id="platformShare">KES 0</strong></span>
+                            </div>
+                        </div>
+
+                        <button id="dispatchBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded-xl shadow transition text-sm cursor-pointer">
+                            Log to Sheets & Launch Dispatch Payload
+                        </button>
+                    </div>
+
+                    <div id="placeholderText" class="text-center py-12 text-gray-400 text-sm font-medium">
+                        Enter route details and calculate to generate system metrics.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center justify-between">
+                <span>3. Live Available Driver Routing Pool</span>
+                <span id="poolCounter" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-bold">0 Drivers Matches</span>
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 text-gray-400 text-xs font-bold uppercase tracking-wider">
+                            <th class="pb-3 pl-2">Driver Identity</th>
+                            <th class="pb-3">Contact</th>
+                            <th class="pb-3">Vehicle Details</th>
+                            <th class="pb-3">Class Allocation</th>
+                            <th class="pb-3 text-right pr-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="driverTableBody" class="divide-y divide-gray-100 text-gray-700 font-medium">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+    <script src="app.js"></script>
+</body>
+</html>
