@@ -1,9 +1,9 @@
 // =========================================================================
-// LIFTRUCK ENTERPRISE SYSTEM CORE ARCHITECTURE - GOOGLE MAPS POWERED ENGINE
+// LIFTRUCK ENTERPRISE SYSTEM CORE ARCHITECTURE - UNIFIED MASTER CONTROLLER
 // =========================================================================
 
 // --- SECTION 1: BUSINESS LOGIC MATRIX CONFIGURATION ---
-const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec"; // Your active Code.gs deployment link
+const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec";
 
 const PRICING_LOGIC = {
     small:  { base: 200,  perKm: 40 },
@@ -12,15 +12,34 @@ const PRICING_LOGIC = {
     heavy:  { base: 3500, perKm: 160 }
 };
 
-// --- SECTION 2: GOOGLE PLACES INTERFACE INITIALIZATION ---
 let autocompletePick, autocompleteDrop;
-let globalBookingData = null; // Caches calculated state for safe server handshakes
+let globalBookingData = null; 
 
+// --- SECTION 2: INTERFACE TAB ROUTING CONTROLS ---
+function switchTab(target) {
+    const pClient = document.getElementById('panel-client');
+    const pDriver = document.getElementById('panel-driver');
+    const tClient = document.getElementById('tab-client');
+    const tDriver = document.getElementById('tab-driver');
+
+    if (target === 'client-panel') {
+        pClient.classList.remove('hidden');
+        pDriver.classList.add('hidden');
+        tClient.className = "px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm cursor-pointer transition";
+        tDriver.className = "px-5 py-2.5 bg-gray-200 text-gray-700 text-sm font-bold rounded-xl cursor-pointer transition";
+    } else {
+        pClient.classList.add('hidden');
+        pDriver.classList.remove('hidden');
+        tClient.className = "px-5 py-2.5 bg-gray-200 text-gray-700 text-sm font-bold rounded-xl cursor-pointer transition";
+        tDriver.className = "px-5 py-2.5 bg-blue-900 text-white text-sm font-bold rounded-xl shadow-sm cursor-pointer transition";
+    }
+}
+
+// --- SECTION 3: GOOGLE PLACES CONFIGURATION ---
 window.addEventListener('load', () => {
     const pickInput = document.getElementById('pickup');
     const dropInput = document.getElementById('dropoff');
 
-    // Structural guard locking searches strictly to Kenya ('ke') to enforce regional efficiency
     const geoOptions = {
         componentRestrictions: { country: "ke" },
         fields: ["geometry", "formatted_address"]
@@ -30,30 +49,29 @@ window.addEventListener('load', () => {
     autocompleteDrop = new google.maps.places.Autocomplete(dropInput, geoOptions);
 });
 
-// --- SECTION 3: CORE MATHEMATICAL GEOMETRY ENGINE (HAVERSINE) ---
+// --- SECTION 4: CORE MATHEMATICAL GEOMETRY ENGINE (HAVERSINE) ---
 function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius of the earth in KM
+    const R = 6371; // Earth's radius in KM
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Returns absolute spatial straight line distance
+    return R * c; 
 }
 
-// --- SECTION 4: CLIENT ROUTING CALCULATOR AND VALIDATION ---
+// --- SECTION 5: CLIENT BOOKING MATRIX AND CALCULATION ---
 document.getElementById('calculateBtn').onclick = async () => {
     const name = document.getElementById('clientName').value.trim();
     const phone = document.getElementById('clientPhone').value.trim();
     const cat = document.getElementById('weightSelect').value;
 
-    // Direct geometric extraction from the Google choice objects
     const placePick = autocompletePick.getPlace();
     const placeDrop = autocompleteDrop.getPlace();
 
     if (!name || !phone || !placePick?.geometry || !placeDrop?.geometry) {
-        alert("🚨 Structural Error: Please make sure you fill in the Client Details and select a location from the Google dropdown menu suggestion.");
+        alert("🚨 Booking Aborted: Ensure you provide client info and choose locations from the autocomplete dropdown menu list.");
         return;
     }
 
@@ -63,34 +81,30 @@ document.getElementById('calculateBtn').onclick = async () => {
         const lat2 = placeDrop.geometry.location.lat();
         const lon2 = placeDrop.geometry.location.lng();
 
-        // Calculate straight line distance and embed your 30% curvature buffer adjustment
+        // Spatial math containing your 30% road curvature buffer overhead adjustment
         const rawDist = getDistance(lat1, lon1, lat2, lon2) * 1.3;
         const displayDist = rawDist.toFixed(1); 
         
-        // Execute conditional Base Price Protection (Short trips under 1KM remain flat-rate)
+        // Execute conditional Base Price Protection (Under 1KM calculations remain flat minimums)
         const base = PRICING_LOGIC[cat].base;
         const perKm = PRICING_LOGIC[cat].perKm;
         const finalPrice = Math.ceil(rawDist < 1 ? base : base + (rawDist * perKm));
 
-        // Compute corporate revenue allocations
         const driverRevenue = Math.ceil(finalPrice * 0.85);
         const platformRevenue = finalPrice - driverRevenue;
 
-        // Clean addresses confirmed by Google database structure
         const pickAddress = placePick.formatted_address;
         const dropAddress = placeDrop.formatted_address;
 
-        // Fetch registered driver pool from Apps Script Backend architecture
         const allDrivers = await fetchLiveDrivers();
-        const filteredDrivers = allDrivers.filter(d => d.category.toLowerCase() === cat.toLowerCase());
+        const filteredDrivers = allDrivers.filter(d => d.category.toLowerCase() === cat.toLowerCase() && d.status === "Active");
 
-        // Cache parameters to ensure execution matches user invoice calculation
         globalBookingData = {
             name, phone, pickAddress, dropAddress, category: cat,
             distance: displayDist, price: finalPrice, driverShare: driverRevenue, platformShare: platformRevenue
         };
 
-        // Output results to UI panel components
+        // Render to calculations interface pane components
         document.getElementById('distanceOutput').innerText = `${displayDist} KM`;
         document.getElementById('priceOutput').innerText = `KES ${finalPrice.toLocaleString()}`;
         document.getElementById('driverShare').innerText = `KES ${driverRevenue.toLocaleString()}`;
@@ -98,27 +112,25 @@ document.getElementById('calculateBtn').onclick = async () => {
 
         renderDriversList(filteredDrivers);
 
-        document.getElementById('placeholderText').classList.add('hidden');
-        document.getElementById('resultsWrapper').classList.remove('hidden');
+        document.getElementById('placeholderText').className = 'hidden';
+        document.getElementById('resultsWrapper').className = 'space-y-4';
 
     } catch (err) {
-        alert("Backend Calculation Exception: " + err.message);
+        alert("Core Engine Transaction Processing Exception: " + err.message);
     }
 };
 
-// --- SECTION 5: BACKEND RETRIEVAL AND INTERFACE RENDERING ---
+// --- SECTION 6: BACKEND SYNC AND INTERFACE RENDERING ---
 async function fetchLiveDrivers() {
     try {
         const res = await fetch(`${BACKEND_API_URL}?action=getDrivers`);
-        if (!res.ok) throw new Error("Network response was compromised.");
+        if (!res.ok) throw new Error("Endpoint communication drop.");
         return await res.json();
     } catch (e) {
-        console.error("Driver fetch sequence bypassed. Using runtime layout backup. Details: ", e);
-        // Secure development runtime backup array if sheets endpoint isn't fully propagated yet
+        console.warn("API Offline. Injecting runtime fallback matrix logic. Profile details: ", e);
         return [
             { name: "Peter Mwangi", phone: "0711223344", plate: "KCD 123X", category: "small", status: "Active" },
-            { name: "John Thika Owner", phone: "0722334455", plate: "KDD 987Z", category: "medium", status: "Active" },
-            { name: "Evans Kiambu Hauler", phone: "0733445566", plate: "KCA 555Y", category: "large", status: "Active" }
+            { name: "Evans Kiambu Trucker", phone: "0733445566", plate: "KCA 555Y", category: "large", status: "Active" }
         ];
     }
 }
@@ -129,7 +141,7 @@ function renderDriversList(drivers) {
     tableBody.innerHTML = '';
 
     if (drivers.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-gray-400 text-xs italic">No active verified drivers currently online for this cargo class.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-gray-400 text-xs italic">No active verified drivers currently online for this cargo class configuration.</td></tr>`;
         return;
     }
 
@@ -147,45 +159,70 @@ function renderDriversList(drivers) {
     });
 }
 
-// --- SECTION 6: GOOGLE SHEETS INGESTION AND DISPATCH TRANSMISSION ---
+// --- SECTION 7: BOOKING INGESTION DISPATCH LINK ---
 document.getElementById('dispatchBtn').onclick = async () => {
-    if (!globalBookingData) return alert("System state error: Compute parameters first.");
-    
+    if (!globalBookingData) return;
     const btn = document.getElementById('dispatchBtn');
     btn.disabled = true;
     btn.innerText = "Processing System Handshake...";
 
     try {
-        // Safe cross-origin network POST payload execution straight to Google Cloud spreadsheet storage
-        const response = await fetch(BACKEND_API_URL, {
+        await fetch(BACKEND_API_URL, {
             method: "POST",
-            mode: "no-cors", // Bypasses browser strict sandboxing restrictions across unlinked domains
+            mode: "no-cors",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "saveBooking", ...globalBookingData })
         });
 
-        // Generate custom, professional WhatsApp URL routing payload for the operational center dispatch
-        const whatsappMsg = `*LIFTRUCK TRANSACTION DISPATCH ORDER*\n` +
-                            `-------------------------------------------\n` +
-                            `• *Client Name:* ${globalBookingData.name}\n` +
-                            `• *Contact Number:* ${globalBookingData.phone}\n` +
-                            `• *Pickup Address:* ${globalBookingData.pickAddress}\n` +
-                            `• *Dropoff Address:* ${globalBookingData.dropAddress}\n` +
-                            `• *Cargo Category Class:* ${globalBookingData.category.toUpperCase()}\n` +
-                            `• *Total Traveled Distance:* ${globalBookingData.distance} KM\n` +
-                            `-------------------------------------------\n` +
-                            `*TOTAL CLIENT INVOICE:* KES ${globalBookingData.price.toLocaleString()}\n` +
-                            `*DRIVER ALLOCATION (85%):* KES ${globalBookingData.driverShare.toLocaleString()}\n` +
-                            `*LIFTRUCK FEES (15%):* KES ${globalBookingData.platformShare.toLocaleString()}\n\n` +
-                            `_System Notice: Transaction logged to cloud master directory ledger. Assign nearest active driver._`;
+        const msg = `*LIFTRUCK TRANSACTION DISPATCH ORDER*\n` +
+                    `-------------------------------------------\n` +
+                    `• *Client Name:* ${globalBookingData.name}\n` +
+                    `• *Contact Number:* ${globalBookingData.phone}\n` +
+                    `• *Pickup Address:* ${globalBookingData.pickAddress}\n` +
+                    `• *Dropoff Address:* ${globalBookingData.dropAddress}\n` +
+                    `• *Cargo Category Class:* ${globalBookingData.category.toUpperCase()}\n` +
+                    `• *Total Traveled Distance:* ${globalBookingData.distance} KM\n` +
+                    `-------------------------------------------\n` +
+                    `*TOTAL CLIENT INVOICE:* KES ${globalBookingData.price.toLocaleString()}\n` +
+                    `*DRIVER ALLOCATION (85%):* KES ${globalBookingData.driverShare.toLocaleString()}\n` +
+                    `*LIFTRUCK FEES (15%):* KES ${globalBookingData.platformShare.toLocaleString()}\n\n` +
+                    `_System Notice: Transaction logged to cloud master directory ledger._`;
 
-        const targetWhatsAppNumber = "254712345678"; // Update with LifTruck's active operational dispatch contact
-        window.open(`https://wa.me/${targetWhatsAppNumber}?text=${encodeURIComponent(whatsappMsg)}`, '_blank');
-
+        window.open(`https://wa.me/254712345678?text=${encodeURIComponent(msg)}`, '_blank');
     } catch (e) {
-        alert("Transactional write failure executed: " + e.message);
+        alert("Network operational write fault: " + e.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "Log to Sheets & Launch Dispatch Payload";
+    }
+};
+
+// --- SECTION 8: DRIVER ONBOARDING FORM HANDLER ---
+document.getElementById('driverRegForm').onsubmit = async (e) => {
+    e.preventDefault();
+    
+    const payload = {
+        action: "registerDriver",
+        name: document.getElementById('driverName').value.trim(),
+        phone: document.getElementById('driverPhone').value.trim(),
+        idNo: document.getElementById('driverNationalID').value.trim(),
+        plate: document.getElementById('driverPlate').value.trim(),
+        category: document.getElementById('driverCategory').value,
+        docs: document.getElementById('driverDocsLink').value.trim()
+    };
+
+    try {
+        await fetch(BACKEND_API_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        alert("🎉 Application Processed!\n\nYour driver recruitment packet has been securely logged into our system directory dashboard. Administration will verify your cloud documentation link before activating your routing permissions.");
+        document.getElementById('driverRegForm').reset();
+        switchTab('client-panel');
+    } catch (err) {
+        alert("Registration pipeline communication failure: " + err.message);
     }
 };
