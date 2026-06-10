@@ -6,7 +6,7 @@
 // SPECIAL NOTE: CLOUD ENDPOINT CONFIGURATION
 // Swap out this variable string value with your active Google Apps Script web application link.
 // =========================================================================
-const BACKEND_API_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL";
+const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec";
 
 // Algorithmic Pricing Engine Constants
 const EPRA_FUEL_BASELINE = 180;    // Structural baseline price of diesel in KES
