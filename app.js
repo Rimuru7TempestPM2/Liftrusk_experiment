@@ -3,7 +3,7 @@
 // =========================================================================
 
 // --- SECTION 1: GLOBAL PLATFORM INSTANCE VARIABLES ---
-const BACKEND_API_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL";
+const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec";
 
 // The pricing matrix matches the shared schema without exposing structural numbers to the frontend markup view
 const ROUTING_TARIFF = {
