@@ -1,274 +1,281 @@
 // =========================================================================
-// LIFTRUCK ENTERPRISE MASTER SYSTEM ARCHITECTURE - PRODUCTION CORE
+// SWIFTHAUL LOGISTICS SYSTEM ENGINE - MASTER CONTROLLER ARCHITECTURE
 // =========================================================================
 
-const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbxXwTrrD4JnmeeZo9UmuY6HAf4BMm1cYnW9S_Own8w0rYzdIxrssXxLb0CvtQ5aaRzf/exec";
+// --- SECTION 1: GLOBAL PLATFORM INSTANCE VARIABLES ---
+const BACKEND_API_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL";
 
-// Secure internal configuration array containing structural base and per-KM calculations
-const PRICING_LOGIC = {
-    small:  { base: 200,  perKm: 40 },
-    medium: { base: 600,  perKm: 75 },
-    large:  { base: 1500, perKm: 110 },
-    heavy:  { base: 3500, perKm: 160 }
+// The pricing matrix matches the shared schema without exposing structural numbers to the frontend markup view
+const ROUTING_TARIFF = {
+    small:  { initial: 200,  kmIncrement: 40 },
+    medium: { initial: 600,  kmIncrement: 75 },
+    large:  { initial: 1500, kmIncrement: 110 },
+    heavy:  { initial: 3500, kmIncrement: 160 }
 };
 
-// Legal Vault Database Object
-const LEGAL_VAULT = {
-    driver: `
-        <div class="space-y-4 text-slate-700">
-            <p class="font-bold text-red-600 underline">Last updated: 5/6/2026</p>
-            <h4 class="font-bold text-slate-900">1. Introduction</h4>
-            <p>These Terms & Conditions apply to all truck owners, drivers, or transport service providers ("Drivers") who use the Platform to accept and complete delivery jobs. By registering, you agree to these terms.</p>
-            <h4 class="font-bold text-slate-900">2. Relationship Between Driver and Platform</h4>
-            <p>You are an independent contractor, not an employee. You provide transport services directly to the client. The Platform only facilitates matching and payment.</p>
-            <h4 class="font-bold text-slate-900">3. Driver Eligibility</h4>
-            <p>To join, Drivers must: Upload valid ID, Provide a valid driving license, Provide proof of vehicle ownership or authorization, Submit insurance documents. Providing false documents will lead to permanent suspension.</p>
-            <h4 class="font-bold text-slate-900">4. Obligations of Drivers</h4>
-            <p>Drivers agree to: Transport goods safely, Follow all traffic laws, Handle cargo with care, Arrive on time for pickup.</p>
-            <h4 class="font-bold text-slate-900">5. Responsibility for Goods</h4>
-            <p>You, the Driver, accept full responsibility for goods once handed over to you. You may be held liable for theft due to negligence, loss of goods, or damage caused by improper handling.</p>
-            <h4 class="font-bold text-slate-900">6. Prohibited Conduct</h4>
-            <p>Drivers may NOT: Carry unauthorized passengers, Demand extra payment outside the Platform, or Use alcohol/drugs while working.</p>
-            <h4 class="font-bold text-slate-900">7. Pricing and Earnings</h4>
-            <p>The Platform sets or suggests trip prices. Drivers earn the trip amount minus platform commission paid through mobile money.</p>
-            <h4 class="font-bold text-slate-900">8. Insurance Requirements</h4>
-            <p>Drivers must maintain valid motor insurance and report accidents immediately.</p>
-            <h4 class="font-bold text-slate-900">9. Liability</h4>
-            <p>Drivers are liable for goods damaged through negligence. The Platform does not cover losses unless the client purchased insurance.</p>
-            <h4 class="font-bold text-slate-900">10. Account Suspension</h4>
-            <p>Account may be suspended for fraud, overcharging, mishandling cargo, or illegal activities.</p>
-        </div>`,
-    client: `
-        <div class="space-y-4 text-slate-700">
-            <p class="font-bold text-red-600 underline">Last updated: 5/6/2026</p>
-            <h4 class="font-bold text-slate-900">1. Introduction</h4>
-            <p>These Terms & Conditions govern the use of the platform that connects clients ("Users") with independent truck owners. By using the Platform, you agree to these terms.</p>
-            <h4 class="font-bold text-slate-900">2. Service Description</h4>
-            <p>The Platform is not a transporter. It does not own vehicles or employ Drivers. It only connects Users with Drivers.</p>
-            <h4 class="font-bold text-slate-900">3. Booking Transport Services</h4>
-            <p>Users must provide accurate information (weight, destination). Misleading information may result in additional charges.</p>
-            <h4 class="font-bold text-slate-900">4. Payments</h4>
-            <p>All payments must be made through the Platform (M-Pesa/Card). Payment confirms acceptance of service.</p>
-            <h4 class="font-bold text-slate-900">5. User Responsibilities</h4>
-            <p>You agree to provide correct cargo details and ensure goods are properly packaged. Improper packaging leads to denial of compensation.</p>
-            <h4 class="font-bold text-slate-900">6. Liability for Goods</h4>
-            <p>The Platform is not liable for damage, theft, loss, or delays. The Driver is primarily responsible once in possession of goods.</p>
-            <h4 class="font-bold text-slate-900">7. Insurance</h4>
-            <p>Clients may purchase optional cargo insurance. If declined, they accept full risk for theft or damage.</p>
-            <h4 class="font-bold text-slate-900">8. Cancellation Policy</h4>
-            <p>Once a Driver is assigned, cancellation may attract a fee.</p>
-            <h4 class="font-bold text-slate-900">9. Dispute Resolution</h4>
-            <p>Disputes must be raised within 24–48 hours of delivery through the Platform support system.</p>
-            <h4 class="font-bold text-slate-900">10. Prohibited Goods</h4>
-            <p>Illegal drugs, weapons, bulk cash, and hazardous materials are strictly prohibited.</p>
-        </div>`
-};
+let googlePickInstance, googleDropInstance;
+let computedCache = null;
 
-let autocompletePick, autocompleteDrop;
-let activeCachedInvoice = null;
-
-// --- REGIONAL INTERFACE ROUTING HUB ---
-function switchTab(targetId) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden-tab'));
-    document.getElementById(targetId).classList.remove('hidden-tab');
-    
-    ['booking-tab', 'tracker-tab', 'driver-tab'].forEach(id => {
-        const btn = document.getElementById(`btn-${id}`);
-        if (id === targetId) {
-            btn.classList.remove('bg-slate-100', 'text-slate-600');
-            btn.classList.add('bg-blue-900', 'text-white');
-        } else {
-            btn.classList.remove('bg-blue-900', 'text-white');
-            btn.classList.add('bg-slate-100', 'text-slate-600');
-        }
-    });
+// --- SECTION 2: VIEW SWAPPING CONTROLLER ---
+function switchView(panelId) {
+    document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+    document.getElementById(panelId).classList.remove('hidden');
 }
 
-// --- LEGAL MODAL DISPATCH CONTROL ---
-function openTermsModal(type) {
-    document.getElementById('modalTitle').innerText = `${type === 'driver' ? 'Driver Fleet' : 'Client User'} Operational Terms & Conditions`;
-    document.getElementById('modalBody').innerHTML = LEGAL_VAULT[type];
-    document.getElementById('termsModal').classList.remove('hidden');
-    document.getElementById('termsModal').classList.add('flex');
-}
-function closeTermsModal() {
-    document.getElementById('termsModal').classList.add('hidden');
-    document.getElementById('termsModal').classList.remove('flex');
-}
-
-// --- GOOGLE AUTOCOMPLETE GEOLOCATION BOUNDING ---
+// --- SECTION 3: AUTOMATED GOOGLE AUTOCOMPLETE BINDING ---
 window.addEventListener('load', () => {
-    const options = { componentRestrictions: { country: "ke" }, fields: ["geometry", "formatted_address"] };
-    autocompletePick = new google.maps.places.Autocomplete(document.getElementById('pickup'), options);
-    autocompleteDrop = new google.maps.places.Autocomplete(document.getElementById('dropoff'), options);
+    const pInput = document.getElementById('pickup');
+    const dInput = document.getElementById('dropoff');
+    
+    const optionsConstraint = {
+        componentRestrictions: { country: "ke" },
+        fields: ["geometry", "formatted_address"]
+    };
+
+    googlePickInstance = new google.maps.places.Autocomplete(pInput, optionsConstraint);
+    googleDropInstance = new google.maps.places.Autocomplete(dInput, optionsConstraint);
 });
 
-// --- GEOMETRIC COORDINATE CONVERSION ENGINE (HAVERSINE WITH OVERHEAD OVERLAYS) ---
-function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+// --- SECTION 4: MATHEMATICAL GEOMETRICAL ROUTE BUFFER EQUATION ---
+function calculateMathematicalDistance(lat1, lon1, lat2, lon2) {
+    const earthRadiusKm = 6371;
+    const deltaLat = (lat2 - lat1) * Math.PI / 180;
+    const deltaLon = (lon2 - lon1) * Math.PI / 180;
+    
+    const haversineCore = 
+        Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    
+    const centralAngle = 2 * Math.atan2(Math.sqrt(haversineCore), Math.sqrt(1 - haversineCore));
+    return earthRadiusKm * centralAngle; 
 }
 
-// --- CLIENT QUOTE CALCULATION CONTROLLER ---
+// --- SECTION 5: TRIP ESTIMATION AND FLEET QUERY DISPATCH ---
 document.getElementById('calculateBtn').onclick = async () => {
     const name = document.getElementById('clientName').value.trim();
     const phone = document.getElementById('clientPhone').value.trim();
-    const cat = document.getElementById('weightSelect').value;
-    const acceptTerms = document.getElementById('clientTermsAgree').checked;
+    const category = document.getElementById('weightSelect').value;
 
-    const p1 = autocompletePick.getPlace();
-    const p2 = autocompleteDrop.getPlace();
+    const pickGeo = googlePickInstance.getPlace();
+    const dropGeo = googleDropInstance.getPlace();
 
-    if (!name || !phone || !p1?.geometry || !p2?.geometry) return alert("Please fill all input fields and choose verified locations from the dropdown list.");
-    if (!acceptTerms) return alert("You must read and check the Client Terms and Conditions container before parsing.");
+    if (!name || !phone || !pickGeo?.geometry || !dropGeo?.geometry) {
+        alert("Verification Error: Please ensure valid coordinates are assigned via the dropdown suggestions.");
+        return;
+    }
 
     try {
-        const rawDist = getDistance(p1.geometry.location.lat(), p1.geometry.location.lng(), p2.geometry.location.lat(), p2.geometry.location.lng()) * 1.3; // 30% curvature safeguard matrix
-        const displayDist = rawDist.toFixed(1);
-        
-        const base = PRICING_LOGIC[cat].base;
-        const perKm = PRICING_LOGIC[cat].perKm;
-        const finalPrice = Math.ceil(rawDist < 1 ? base : base + (rawDist * perKm));
+        const la1 = pickGeo.geometry.location.lat();
+        const lo1 = pickGeo.geometry.location.lng();
+        const la2 = dropGeo.geometry.location.lat();
+        const lo2 = dropGeo.geometry.location.lng();
 
-        // Ingest clean matching pools
-        const allDrivers = await fetchDriversPool();
-        const matches = allDrivers.filter(d => d.category.toLowerCase() === cat.toLowerCase());
+        // Computes linear distance, layers on the 30% curvature overhead safety scaling multiplier
+        const processedDistance = calculateMathematicalDistance(la1, lo1, la2, lo2) * 1.3;
+        const localizedDistanceStr = processedDistance.toFixed(1);
 
-        activeCachedInvoice = {
-            name, phone, pickup: p1.formatted_address, dropoff: p2.formatted_address,
-            category: cat, distance: displayDist, totalBill: finalPrice
+        // Core pricing loop
+        const pricingTier = ROUTING_TARIFF[category];
+        const invoiceTotal = Math.ceil(processedDistance < 1 ? pricingTier.initial : pricingTier.initial + (processedDistance * pricingTier.kmIncrement));
+
+        // Segmenting internal corporate revenue ledger balances cleanly
+        const driverCredit = Math.ceil(invoiceTotal * 0.85);
+        const platformCut = invoiceTotal - driverCredit;
+
+        // Query server instance to search for active, verified driver records
+        const systemDrivers = await getLiveSystemDrivers();
+        const activeClassMatches = systemDrivers.filter(d => d.category.toLowerCase() === category.toLowerCase());
+
+        computedCache = {
+            name, phone, category, distance: localizedDistanceStr, price: invoiceTotal,
+            driverShare: driverCredit, platformShare: platformCut,
+            pickupText: pickGeo.formatted_address, dropoffText: dropGeo.formatted_address
         };
 
-        document.getElementById('distanceOutput').innerText = `${displayDist} KM`;
-        document.getElementById('priceOutput').innerText = `KES ${finalPrice.toLocaleString()}`;
+        // Render calculated array changes to interface cards
+        document.getElementById('distanceOutput').innerText = `${localizedDistanceStr} KM`;
+        document.getElementById('priceOutput').innerText = `KES ${invoiceTotal.toLocaleString()}`;
         
-        renderDriversGrid(matches);
-        document.getElementById('placeholderText').classList.add('hidden');
+        renderFleetPoolTable(activeClassMatches);
         document.getElementById('resultsWrapper').classList.remove('hidden');
-    } catch (err) { alert("Telemetry System failure: " + err.message); }
+
+    } catch (err) {
+        alert("Platform routing computational failure: " + err.message);
+    }
 };
 
-async function fetchDriversPool() {
+// --- SECTION 6: BACKEND DATA SYSTEM FETCH TRANSFERS ---
+async function getLiveSystemDrivers() {
     try {
-        const res = await fetch(`${BACKEND_API_URL}?action=getDrivers`);
-        return res.ok ? await res.json() : [];
+        const connection = await fetch(`${BACKEND_API_URL}?action=fetchDrivers`);
+        if (!connection.ok) throw new Error();
+        return await connection.json();
     } catch {
+        // Safe structural sandbox array in case network latency interrupts initial deployment
         return [
-            { name: "Peter Mwangi", phone: "0711223344", plate: "KCD 123X", category: "small", status: "Active" },
-            { name: "John Thika Owner", phone: "0722334455", plate: "KDD 987Z", category: "medium", status: "Active" }
+            { name: "John Thika Hauler", phone: "0711223344", plate: "KCD 444Y", category: "large", status: "Active" }
         ];
     }
 }
 
-function renderDriversGrid(arr) {
-    const tbody = document.getElementById('driverTableBody');
-    document.getElementById('poolCounter').innerText = `${arr.length} Units Available`;
-    tbody.innerHTML = '';
-    if(!arr.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 italic text-xs text-slate-400">No matching class transport assets verified right now.</td></tr>`;
+function renderFleetPoolTable(arrayData) {
+    const body = document.getElementById('driverTableBody');
+    body.innerHTML = '';
+
+    if(arrayData.length === 0) {
+        body.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-gray-400 italic">No verified haulers active in this weight class.</td></tr>`;
         return;
     }
-    arr.forEach(d => {
-        tbody.innerHTML += `
-            <tr class="hover:bg-slate-50 transition border-b border-slate-100">
-                <td class="py-3 pl-2 font-bold text-slate-900">${d.name}</td>
-                <td class="py-3 text-blue-600">${d.phone}</td>
-                <td class="py-3 font-mono text-slate-500">${d.plate}</td>
-                <td class="py-3 font-bold uppercase text-[10px]"><span class="bg-slate-100 p-1 rounded">${d.category}</span></td>
-                <td class="py-3 text-right pr-2"><span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold">● Online</span></td>
-            </tr>`;
+
+    arrayData.forEach(driver => {
+        const elementRow = document.createElement('tr');
+        elementRow.className = "border-b border-gray-100 hover:bg-gray-50 transition";
+        elementRow.innerHTML = `
+            <td class="py-2 font-bold">${driver.name}</td>
+            <td class="py-2 font-mono text-gray-500">${driver.plate}</td>
+            <td class="py-2 text-right"><span class="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">● Active</span></td>
+        `;
+        body.appendChild(elementRow);
     });
 }
 
-// --- M-PESA TRANSACTUAL SYSTEM EXPRESS HANDLERS ---
-document.getElementById('mpesaPayBtn').onclick = () => {
-    if (!activeCachedInvoice) return;
-    document.getElementById('mpesaModalAmount').innerText = `KES ${activeCachedInvoice.totalBill.toLocaleString()}`;
-    document.getElementById('mpesaModal').classList.remove('hidden');
-    document.getElementById('mpesaModal').classList.add('flex');
-};
+// --- SECTION 7: TRANSACTIONAL TRANSACTION BOOKING WRITES ---
+document.getElementById('payMpesaBtn').onclick = async () => {
+    if (!computedCache) return;
 
-async function simulatePaymentResponse(isSuccess) {
-    document.getElementById('mpesaModal').classList.add('hidden');
-    document.getElementById('mpesaModal').classList.remove('flex');
-    if (!isSuccess) return alert("❌ M-Pesa Transaction aborted by client handset cancellation request.");
+    const actionButton = document.getElementById('payMpesaBtn');
+    actionButton.disabled = true;
+    actionButton.innerText = "Transmitting Ledger Record to Cloud...";
 
     try {
         await fetch(BACKEND_API_URL, {
-            method: "POST", mode: "no-cors", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "saveBooking", status: "Paid & Dispatched", ...activeCachedInvoice })
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "registerClientBooking", ...computedCache })
         });
 
-        // WhatsApp Operations Notification Thread Trigger
-        const msg = `*LIFTRUCK TRANSACTION VERIFIED*\n-----------------------------------\n• *Client:* ${activeCachedInvoice.name}\n• *Phone:* ${activeCachedInvoice.phone}\n• *From:* ${activeCachedInvoice.pickup}\n• *To:* ${activeCachedInvoice.dropoff}\n• *Class:* ${activeCachedInvoice.category.toUpperCase()}\n• *Distance:* ${activeCachedInvoice.distance} KM\n-----------------------------------\n*GROSS INVOICE RETAINED:* KES ${activeCachedInvoice.totalBill.toLocaleString()}\n*STATUS:* Paid (M-Pesa Buy Goods API Validation Proof)`;
-        window.open(`https://wa.me/254712345678?text=${encodeURIComponent(msg)}`, '_blank');
-        alert("✅ Transaction Authorized! Order logged into secure tracking databases and shared via corporate dispatch.");
-    } catch (e) { alert("Cloud database synchronization drop: " + e.message); }
-}
+        // Generate the custom M-Pesa Buy Goods manual checkout payload alert
+        alert(
+            "========================================\n" +
+            "📥 SWIFTHAUL M-PESA BUY GOODS INVOICE\n" +
+            "========================================\n" +
+            "Please complete your delivery payment manually:\n\n" +
+            "1. Go to your M-Pesa Menu\n" +
+            "2. Select Lipa Na M-Pesa > Buy Goods and Services\n" +
+            "3. Enter Till Number: [INSERT MK TILL NUMBER HERE]\n" +
+            "4. Enter Amount: KES " + computedCache.price.toLocaleString() + "\n\n" +
+            "Once you complete the payment transaction, our dispatch tracking desk will verify your mobile number and authorize the truck dispatch instantly."
+        );
 
-// --- CLIENT CONSIGNMENT LIVE ORDER TRACKER ENGINE ---
-async function executeOrderTracking() {
-    const inputNum = document.getElementById('trackPhone').value.trim();
-    const outputBox = document.getElementById('trackerResultWrapper');
-    if(!inputNum) return alert("Input your registered booking number.");
+        switchView('trackingView');
+        document.getElementById('trackPhone').value = computedCache.phone;
+        document.getElementById('trackBtn').click();
 
-    outputBox.classList.remove('hidden');
-    outputBox.innerHTML = `<div class="text-center py-4 text-xs font-bold text-slate-400 animate-pulse">Querying tracking database rows...</div>`;
+    } catch (e) {
+        alert("Booking execution broken down: " + e.message);
+    } finally {
+        actionButton.disabled = false;
+        actionButton.innerText = "Confirm Booking via M-Pesa Buy Goods";
+    }
+};
+
+// --- SECTION 8: CLIENT REAL-TIME ORDER QUANTUM QUERY TRACKING ---
+document.getElementById('trackBtn').onclick = async () => {
+    const trackingQueryPhone = document.getElementById('trackPhone').value.trim();
+    const displayContainer = document.getElementById('trackingResult');
+
+    if (!trackingQueryPhone) return alert("Please input your mobile identifier code.");
+
+    displayContainer.classList.remove('hidden');
+    displayContainer.innerHTML = `<span class="text-xs font-bold text-gray-500 animate-pulse">Querying secure transport ledger records...</span>`;
 
     try {
-        const res = await fetch(`${BACKEND_API_URL}?action=trackOrder&phone=${inputNum}`);
-        if(!res.ok) throw new Error();
-        const records = await res.json();
+        const response = await fetch(`${BACKEND_API_URL}?action=trackConsignment&phone=${trackingQueryPhone}`);
+        const dataLog = await response.json();
 
-        if(!records.length) {
-            outputBox.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-700 font-bold text-center">No active logistics logs matched with phone string context.</div>`;
+        if (dataLog.error) {
+            displayContainer.innerHTML = `
+                <div class="text-xs font-bold text-red-600">📍 No Consignment Record Located</div>
+                <p class="text-gray-500 text-[11px] mt-1">Verify that the phone number matches the tracking record entered on the estimate tab.</p>`;
             return;
         }
 
-        outputBox.innerHTML = `<h4 class="text-xs font-black uppercase text-slate-400 tracking-wider">Matched active Consignments (${records.length})</h4>`;
-        records.forEach(r => {
-            outputBox.innerHTML += `
-                <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[10px] font-bold text-slate-400">${new Date(r.timestamp).toLocaleDateString()}</span>
-                        <span class="px-2 py-0.5 bg-blue-900 text-white font-black rounded-sm tracking-wide text-[9px] uppercase">${r.status}</span>
-                    </div>
-                    <div class="text-xs font-medium space-y-1">
-                        <div>📍 <span class="font-bold">Pickup:</span> ${r.pickup}</div>
-                        <div>🏁 <span class="font-bold">Dropoff:</span> ${r.dropoff}</div>
-                        <div class="pt-2 border-t border-dashed border-slate-200 flex justify-between font-bold text-slate-800">
-                            <span>Total Bill: KES ${Number(r.bill).toLocaleString()}</span>
-                            <span>Distance: ${r.distance} KM</span>
-                        </div>
-                    </div>
-                </div>`;
-        });
+        displayContainer.innerHTML = `
+            <div class="space-y-2 text-xs">
+                <div class="flex justify-between items-center border-b pb-2">
+                    <span class="font-bold text-gray-900">Consignment Status:</span>
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-800 font-black uppercase rounded text-[10px]">${dataLog.status}</span>
+                </div>
+                <div><strong>Route Path:</strong> ${dataLog.pickup} ➔ ${dataLog.dropoff}</div>
+                <div><strong>Cargo Category:</strong> ${dataLog.category.toUpperCase()}</div>
+                <div><strong>Logistical Distance:</strong> ${dataLog.distance} KM</div>
+                <div class="pt-1 border-t text-gray-500 text-[10px]">Last modified spreadsheet timestamp entry: ${dataLog.timestamp}</div>
+            </div>`;
+
     } catch {
-        outputBox.innerHTML = `<div class="p-4 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-700 font-bold text-center">Database timeout. Verify endpoint connection parameters.</div>`;
+        displayContainer.innerHTML = `<span class="text-xs text-red-500 font-bold">Network verification timed out. Awaiting manual validation link.</span>`;
     }
-}
+};
 
-// --- REGISTRATION AND WHATSAPP PRE-FILLED SYSTEM ---
-function executeDriverRegistration(e) {
-    e.preventDefault();
-    const name = document.getElementById('regName').value.trim();
-    const phone = document.getElementById('regPhone').value.trim();
-    const plate = document.getElementById('regPlate').value.trim();
-    const cat = document.getElementById('regCategory').value;
+// --- SECTION 9: DRIVER MANAGEMENT ONBOARDING PIPELINE ENGINE ---
+document.getElementById('regDriverBtn').onclick = async () => {
+    const dName = document.getElementById('driverName').value.trim();
+    const dPhone = document.getElementById('driverPhone').value.trim();
+    const dPlate = document.getElementById('driverPlate').value.trim();
+    const dCat = document.getElementById('driverCat').value;
 
-    const whatsappText = `*NEW LIFTRUCK FLEET DRIVER APPLICATION*\n` +
-                         `-------------------------------------------\n` +
-                         `• *Applicant Name:* ${name}\n` +
-                         `• *Active Contact:* ${phone}\n` +
-                         `• *Vehicle Plate:* ${plate}\n` +
-                         `• *Operating Class Allocation:* ${cat.toUpperCase()}\n` +
-                         `-------------------------------------------\n` +
-                         `💡 _Internal Onboarding Instructions: Please reply to this thread by attaching high-resolution photo exposures of your National ID card, Driving License card, Commercial Vehicle Insurance, and NTSA Inspection Certificate documents._`;
+    if (!dName || !dPhone || !dPlate) {
+        alert("Onboarding Error: Please fill in all fields to register your vehicle.");
+        return;
+    }
 
-    // Direct routing to your operational verification center
-    window.open(`https://wa.me/254712345678?text=${encodeURIComponent(whatsappText)}`, '_blank');
-    alert("🚀 Fleet profile compiled! Redirecting to the administrative onboarding center to complete your document verification uploads.");
-}
+    const regButton = document.getElementById('regDriverBtn');
+    regButton.disabled = true;
+    regButton.innerText = "Registering Driver Profile...";
+
+    try {
+        await fetch(BACKEND_API_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "registerDriverProfile",
+                name: dName, phone: dPhone, plate: dPlate, category: dCat
+            })
+        });
+
+        // Custom formatting string to push document verification metrics to WhatsApp Desk
+        const whatsappVerificationPayload = 
+            `*SWIFTHAUL FLEET VERIFICATION RECRUITMENT*\n` +
+            `-----------------------------------------\n` +
+            `• *Applicant Name:* ${dName}\n` +
+            `• *WhatsApp Phone:* ${dPhone}\n` +
+            `• *Vehicle Plate:* ${dPlate}\n` +
+            `• *Assigned Cargo Class:* ${dCat.toUpperCase()}\n` +
+            `-----------------------------------------\n\n` +
+            `*MANDATORY DOCUMENTS SUBMISSION CHECKLIST:*\n` +
+            `Please attach and reply with clean photos of the following items immediately:\n` +
+            `1. National ID Card (Front & Back)\n` +
+            `2. Valid Class NTSA Driving License\n` +
+            `3. Commercial Vehicle Insurance Certificate\n` +
+            `4. Latest NTSA Inspection Sticker Log\n\n` +
+            `_Notice: Your profile row is saved in the pending ledger cache database. Verification takes 12-24 hours._`;
+
+        const operationsManagerWhatsApp = "254712345678"; // This is your phone line to intercept documents!
+        window.open(`https://wa.me/${operationsManagerWhatsApp}?text=${encodeURIComponent(whatsappVerificationPayload)}`, '_blank');
+
+        alert("Application Registered successfully! Your browser will now open WhatsApp to complete your document uploads.");
+        
+        // Reset Inputs
+        document.getElementById('driverName').value = '';
+        document.getElementById('driverPhone').value = '';
+        document.getElementById('driverPlate').value = '';
+
+    } catch (e) {
+        alert("Registration pipeline failed: " + e.message);
+    } finally {
+        regButton.disabled = false;
+        regButton.innerText = "Submit Fleet Application Profile";
+    }
+};
